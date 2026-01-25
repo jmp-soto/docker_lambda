@@ -10,9 +10,16 @@ Resources:
       PackageType: Image
       Timeout: 60
       MemorySize: 2048
+      Environment:
+        Variables:
+          STAGE: prod
     Metadata:
       Dockerfile: Dockerfile
-      DockerContext: lambdas/Lambda-da-ml-order-inicial-cl  # SIN "./" al inicio
-      DockerTag: latest
-      BuildArgs:
-        BASE_IMAGE: public.ecr.aws/lambda/python:3.12
+      # ¡IMPORTANTE! Esto es CRÍTICO:
+      # Opción A: Ruta relativa DESDE EL DIRECTORIO ACTUAL donde se ejecuta SAM
+      DockerContext: ./lambdas/Lambda-da-ml-order-inicial-cl
+      
+      # Opción B: Ruta absoluta (más segura en CI/CD)
+      # DockerContext: /home/runner/work/docker_lambda/docker_lambda/lambdas/Lambda-da-ml-order-inicial-cl
+      
+      DockerTag: v1.0.0
