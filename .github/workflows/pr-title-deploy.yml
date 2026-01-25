@@ -1,12 +1,6 @@
 name: Deploy Lambda by PR Title
 
 on:
-  # pull_request:
-  #   types: [closed]
-  #   branches:
-  #     - develop
-  #     - qa
-  #     - prod
   push:
     branches:
       - develop
@@ -17,15 +11,25 @@ on:
 permissions:
   id-token: write
   contents: read
+
 jobs:
   deploy:
-    # if: >
-    #   github.event.pull_request.merged == true &&
-    #   startsWith(github.event.pull_request.title, 'deploy:')
     runs-on: ubuntu-latest
-
+    
     steps:
       - uses: actions/checkout@v4
+      
+      - name: Read lambdas configuration
+        id: read-lambdas
+        run: |
+          if [ -f "lambdas.yml" ]; then
+            echo "lambdas_config=$(cat lambdas.yml | yq -o=json | jq -c .)" >> $GITHUB_OUTPUT
+          else
+            echo "lambdas_config={\"lambdas\":[]}" >> $GITHUB_OUTPUT
+          fi
+        env:
+          # Instalar yq si no está disponible
+          YQ_VERSION: v4.35.1
 
       - name: Configure AWS credentials
         id: creds
@@ -40,13 +44,82 @@ jobs:
 
       - name: Setup Docker
         uses: docker/setup-buildx-action@v3
+
+      - name: Deploy Lambdas
+        run: |
+          # Leer la configuración de lambdas
+          LAMBDAS_JSON='${{ steps.read-lambdas.outputs.lambdas_config }}'
+          
+          # Convertir a array y procesar cada lambda
+          echo "$LAMBDAS_JSON" | jq -c '.lambdas[]' | while read lambda; do
+            LAMBDA_NAME=$(echo "$lambda" | jq -r '.name')
+            LAMBDA_PATH=$(echo "$lambda" | jq -r '.path')
+            
+            echo "Procesando lambda: $LAMBDA_NAME"
+            echo "Ruta: $LAMBDA_PATH"
+            
+            # Verificar si el directorio existe
+            if [ -d "$LAMBDA_PATH" ]; then
+              echo "✓ Directorio encontrado. Procediendo con el despliegue..."
+              
+              # Aquí iría tu lógica de despliegue para cada lambda
+              # Por ejemplo:
+              # bash scripts/deploy-lambda.sh "$LAMBDA_NAME" "$LAMBDA_PATH"
+              
+              # Ejemplo con tu script actual:
+              # bash scripts/deploy-from-title.sh "$LAMBDA_NAME" "${{ github.event_name }}"
+            else
+              echo "✗ Directorio no encontrado: $LAMBDA_PATH. Saltando..."
+            fi
+          done
+
+# on:
+#   # pull_request:
+#   #   types: [closed]
+#   #   branches:
+#   #     - develop
+#   #     - qa
+#   #     - prod
+#   push:
+#     branches:
+#       - develop
+#       - lambda_prueba_dockers
+#       - qa
+#       - prod
+
+# permissions:
+#   id-token: write
+#   contents: read
+# jobs:
+#   deploy:
+#     # if: >
+#     #   github.event.pull_request.merged == true &&
+#     #   startsWith(github.event.pull_request.title, 'deploy:')
+#     runs-on: ubuntu-latest
+
+#     steps:
+#       - uses: actions/checkout@v4
+
+#       - name: Configure AWS credentials
+#         id: creds
+#         uses: aws-actions/configure-aws-credentials@v3
+#         with:
+#           role-to-assume: arn:aws:iam::682033497219:role/githubrol
+#           role-session-name: darolesession
+#           aws-region: us-east-1
+
+#       - name: Setup SAM
+#         uses: aws-actions/setup-sam@v2
+
+#       - name: Setup Docker
+#         uses: docker/setup-buildx-action@v3
   
       # - name: Deploy Lambda Image
       #   run: |
       #     bash scripts/deploy-from-title.sh \
       #     "${{ github.event.pull_request.title }}"
 
-      - name: Deploy Lambda Image
-        run: |
-          bash scripts/deploy-from-title.sh \
-          "deploy:lambda-da-ml-order-inicial-cl"          
+      # - name: Deploy Lambda Image
+      #   run: |
+      #     bash scripts/deploy-from-title.sh \
+      #     "deploy:lambda-da-ml-order-inicial-cl"          

@@ -1,0 +1,5 @@
+lambdas:
+  - name: Lambda-da-ml-order-inicial-cl
+    path: lambdas/Lambda-da-ml-order-inicial-cl/src/
+  - name: Lambda-da-ml-order-inicial-back-office
+    path: lambdas/Lambda-da-ml-order-inicial-back-office/src/

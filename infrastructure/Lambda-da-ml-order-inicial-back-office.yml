@@ -1,0 +1,19 @@
+# infrastructure/lambda-da-ml-order-inicial-cl.yml
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Resources:
+  LambdaDaMlOrderInicialCl:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: lambda-da-ml-order-inicial-back-office
+      PackageType: Image
+      Timeout: 60
+      MemorySize: 2048
+      Environment:
+        Variables:
+          STAGE: prod
+    Metadata:
+      Dockerfile: Dockerfile
+      DockerContext: lambdas/Lambda-da-ml-order-inicial-back-office
+      DockerTag: latest

@@ -93,14 +93,12 @@ export SAM_CLI_TELEMETRY=0
 # Limpiar builds anteriores
 rm -rf .aws-sam 2>/dev/null || true
 
-# Construir CON --build-dir EXPLÍCITO
 echo "Ejecutando sam build desde $REPO_ROOT..."
 sam build \
   --template-file "$REPO_ROOT/template-sam.yml" \
   --build-dir "$REPO_ROOT/.aws-sam/build" \
   --use-container
 
-# Verificar resultado
 if [ -f "$REPO_ROOT/.aws-sam/build/template.yaml" ]; then
   echo "✅ SAM BUILD EXITOSO"
 else
@@ -110,7 +108,6 @@ else
     --build-dir "$REPO_ROOT/.aws-sam/build"
 fi
 
-# 7. DESPLEGAR
 echo "☁️ DESPLEGANDO A AWS"
 
 sam deploy \
@@ -122,4 +119,4 @@ sam deploy \
   --no-confirm-changeset \
   --no-fail-on-empty-changeset
 
-echo "🎉 ¡DESPLIEGUE COMPLETADO EXITOSAMENTE!"
+echo "¡DESPLIEGUE COMPLETADO EXITOSAMENTE!"

@@ -1,0 +1,6 @@
+# Dependencias de lambda
+numpy
+pandas
+joblib
+xgboost
+scikit-learn
