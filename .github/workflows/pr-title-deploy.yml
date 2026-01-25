@@ -10,6 +10,7 @@ on:
   push:
     branches:
       - develop
+      - lambda_prueba_dockers
       - qa
       - prod
 
