@@ -33,16 +33,17 @@ for LAMBDA_NAME in "${LAMBDA_ARRAY[@]}"; do
   
   echo "📄 Using template: $TEMPLATE_FILE"
   
-  # Verify Docker context directory exists
-  DOCKER_CONTEXT="lambdas/${LAMBDA_NAME}"
-  if [ ! -d "$DOCKER_CONTEXT" ]; then
-    echo "❌ Docker context directory not found: $DOCKER_CONTEXT"
+  # Find Docker context directory (case-insensitive)
+  DOCKER_DIR=$(find lambdas/ -maxdepth 1 -type d -iname "${LAMBDA_NAME}" | head -1)
+  
+  if [ -z "$DOCKER_DIR" ]; then
+    echo "❌ Docker context directory not found for: $LAMBDA_NAME"
     echo "Available lambda directories:"
     ls -la lambdas/ 2>/dev/null || echo "No lambda directories found"
     exit 1
   fi
   
-  echo "✅ Docker context directory exists: $DOCKER_CONTEXT"
+  echo "✅ Found Docker context directory: $DOCKER_DIR"
   
   # Build with SAM
   echo "🔨 Building SAM application..."
