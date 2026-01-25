@@ -57,13 +57,13 @@ jobs:
           else
             # Fallback usando python
             LAMBDAS=$(python3 -c "
-import yaml, json, sys
-with open('templates/lambdas.yml') as f:
-    data = yaml.safe_load(f)
-    print(json.dumps(data.get('lambdas', [])))
-")
-          fi
-          echo "LAMBDAS=$LAMBDAS" >> $GITHUB_ENV
+          import yaml, json, sys
+          with open('templates/lambdas.yml') as f:
+              data = yaml.safe_load(f)
+              print(json.dumps(data.get('lambdas', [])))
+          ")
+                    fi
+                    echo "LAMBDAS=$LAMBDAS" >> $GITHUB_ENV
 
       - name: Extract Lambdas from PR title
         id: extract_lambdas
