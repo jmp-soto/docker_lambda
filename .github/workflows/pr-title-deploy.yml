@@ -18,19 +18,9 @@ jobs:
     
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       
-      - name: Read lambdas configuration
-        id: read-lambdas
-        run: |
-          if [ -f "lambdas.yml" ]; then
-            echo "lambdas_config=$(cat lambdas.yml | yq -o=json | jq -c .)" >> $GITHUB_OUTPUT
-          else
-            echo "lambdas_config={\"lambdas\":[]}" >> $GITHUB_OUTPUT
-          fi
-        env:
-          # Instalar yq si no está disponible
-          YQ_VERSION: v4.35.1
-
       - name: Configure AWS credentials
         id: creds
         uses: aws-actions/configure-aws-credentials@v3
@@ -44,82 +34,77 @@ jobs:
 
       - name: Setup Docker
         uses: docker/setup-buildx-action@v3
+      
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
 
-      - name: Deploy Lambdas
+      - name: Read lambdas configuration
+        id: read-lambdas
         run: |
+          # Instalar yq si es necesario
+          if ! command -v yq &> /dev/null; then
+            echo "Instalando yq..."
+            sudo wget -q https://github.com/mikefarah/yq/releases/download/v4.35.1/yq_linux_amd64 -O /usr/bin/yq
+            sudo chmod +x /usr/bin/yq
+          fi
+          
+          if [ -f "lambdas.yml" ]; then
+            echo "Archivo lambdas.yml encontrado"
+            # Crear formato JSON para el output
+            yq eval '.lambdas' lambdas.yml -o=json > lambdas.json
+            echo "lambdas_config=$(cat lambdas.json)" >> $GITHUB_OUTPUT
+          else
+            echo "Archivo lambdas.yml no encontrado"
+            echo 'lambdas_config=[]' >> $GITHUB_OUTPUT
+          fi
+
+      - name: Deploy Lambdas from config
+        run: |
+          # Verificar que el script existe
+          if [ ! -f "scripts/deploy-from-title.sh" ]; then
+            echo "❌ ERROR: Script scripts/deploy-from-title.sh no encontrado"
+            exit 1
+          fi
+          
+          # Hacer ejecutable el script
+          chmod +x scripts/deploy-from-title.sh
+          
           # Leer la configuración de lambdas
           LAMBDAS_JSON='${{ steps.read-lambdas.outputs.lambdas_config }}'
           
-          # Convertir a array y procesar cada lambda
-          echo "$LAMBDAS_JSON" | jq -c '.lambdas[]' | while read lambda; do
+          echo "Configuración de lambdas: $LAMBDAS_JSON"
+          
+          # Si es un array vacío o no válido, salir
+          if [ "$LAMBDAS_JSON" = "[]" ] || [ -z "$LAMBDAS_JSON" ]; then
+            echo "No hay lambdas configuradas para desplegar"
+            exit 0
+          fi
+          
+          # Procesar cada lambda
+          echo "$LAMBDAS_JSON" | jq -c '.[]' | while read lambda; do
             LAMBDA_NAME=$(echo "$lambda" | jq -r '.name')
-            LAMBDA_PATH=$(echo "$lambda" | jq -r '.path')
             
-            echo "Procesando lambda: $LAMBDA_NAME"
-            echo "Ruta: $LAMBDA_PATH"
-            
-            # Verificar si el directorio existe
-            if [ -d "$LAMBDA_PATH" ]; then
-              echo "✓ Directorio encontrado. Procediendo con el despliegue..."
+            if [ -n "$LAMBDA_NAME" ] && [ "$LAMBDA_NAME" != "null" ]; then
+              echo "=========================================="
+              echo "🚀 DESPLEGANDO LAMBDA: $LAMBDA_NAME"
+              echo "=========================================="
               
-              # Aquí iría tu lógica de despliegue para cada lambda
-              # Por ejemplo:
-              # bash scripts/deploy-lambda.sh "$LAMBDA_NAME" "$LAMBDA_PATH"
+              # Ejecutar el script con el nombre de la lambda como título
+              # Formato: "deploy: LambdaName"
+              TITLE="deploy: $LAMBDA_NAME"
+              echo "Ejecutando: scripts/deploy-from-title.sh \"$TITLE\""
               
-              # Ejemplo con tu script actual:
-              # bash scripts/deploy-from-title.sh "$LAMBDA_NAME" "${{ github.event_name }}"
-            else
-              echo "✗ Directorio no encontrado: $LAMBDA_PATH. Saltando..."
+              if scripts/deploy-from-title.sh "$TITLE"; then
+                echo "✅ Despliegue de $LAMBDA_NAME completado exitosamente"
+              else
+                echo "❌ Error en el despliegue de $LAMBDA_NAME"
+                # Continuar con la siguiente lambda
+                continue
+              fi
             fi
           done
-
-# on:
-#   # pull_request:
-#   #   types: [closed]
-#   #   branches:
-#   #     - develop
-#   #     - qa
-#   #     - prod
-#   push:
-#     branches:
-#       - develop
-#       - lambda_prueba_dockers
-#       - qa
-#       - prod
-
-# permissions:
-#   id-token: write
-#   contents: read
-# jobs:
-#   deploy:
-#     # if: >
-#     #   github.event.pull_request.merged == true &&
-#     #   startsWith(github.event.pull_request.title, 'deploy:')
-#     runs-on: ubuntu-latest
-
-#     steps:
-#       - uses: actions/checkout@v4
-
-#       - name: Configure AWS credentials
-#         id: creds
-#         uses: aws-actions/configure-aws-credentials@v3
-#         with:
-#           role-to-assume: arn:aws:iam::682033497219:role/githubrol
-#           role-session-name: darolesession
-#           aws-region: us-east-1
-
-#       - name: Setup SAM
-#         uses: aws-actions/setup-sam@v2
-
-#       - name: Setup Docker
-#         uses: docker/setup-buildx-action@v3
-  
-      # - name: Deploy Lambda Image
-      #   run: |
-      #     bash scripts/deploy-from-title.sh \
-      #     "${{ github.event.pull_request.title }}"
-
-      # - name: Deploy Lambda Image
-      #   run: |
-      #     bash scripts/deploy-from-title.sh \
-      #     "deploy:lambda-da-ml-order-inicial-cl"          
+        env:
+          # Variables de entorno necesarias para AWS/SAM
+          AWS_REGION: us-east-1
+          AWS_DEFAULT_REGION: us-east-1
