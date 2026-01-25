@@ -1,7 +1,8 @@
 name: Deploy Lambda
 
 on:
-  push:
+  pull_request:
+    types: [closed]
     branches:
       - develop
       - qa
@@ -13,10 +14,19 @@ permissions:
 
 jobs:
   deploy:
+    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+          pip install yq
       
       - name: Configure AWS
         uses: aws-actions/configure-aws-credentials@v3
@@ -34,15 +44,82 @@ jobs:
       - name: Login to ECR
         uses: aws-actions/amazon-ecr-login@v1
 
+      - name: Get PR title
+        id: pr_title
+        run: echo "PR_TITLE=${{ github.event.pull_request.title }}" >> $GITHUB_ENV
+
+      - name: Load Lambdas from YAML
+        id: load_lambdas
+        run: |
+          # Convertir YAML a JSON y extraer lambdas
+          if command -v yq &> /dev/null; then
+            LAMBDAS=$(yq -o=json '.' templates/lambdas.yml | jq -c '.lambdas')
+          else
+            # Fallback usando python
+            LAMBDAS=$(python3 -c "
+import yaml, json, sys
+with open('templates/lambdas.yml') as f:
+    data = yaml.safe_load(f)
+    print(json.dumps(data.get('lambdas', [])))
+")
+          fi
+          echo "LAMBDAS=$LAMBDAS" >> $GITHUB_ENV
+
+      - name: Extract Lambdas from PR title
+        id: extract_lambdas
+        run: |
+          set -e
+          echo "PR title: $PR_TITLE"
+          
+          # Crear archivo temporal con el JSON
+          echo "$LAMBDAS" > lambdas_temp.json
+          
+          # Extraer nombres de lambdas del PR title
+          MATCHING_LAMBDAS=""
+          
+          # Buscar cada lambda en el título del PR
+          while read -r lambda_json; do
+            LAMBDA_NAME=$(echo "$lambda_json" | jq -r '.name')
+            
+            # Verificar si el nombre de la lambda aparece en el título del PR
+            if [[ "$PR_TITLE" == *"$LAMBDA_NAME"* ]]; then
+              echo "Lambda encontrada en PR title: $LAMBDA_NAME"
+              if [ -z "$MATCHING_LAMBDAS" ]; then
+                MATCHING_LAMBDAS="$LAMBDA_NAME"
+              else
+                MATCHING_LAMBDAS="$MATCHING_LAMBDAS $LAMBDA_NAME"
+              fi
+            fi
+          done < <(echo "$LAMBDAS" | jq -c '.[]')
+          
+          if [ -z "$MATCHING_LAMBDAS" ]; then
+            echo "No se encontraron lambdas en el título del PR: $PR_TITLE"
+            echo "LAMBDAS_TO_DEPLOY=" >> $GITHUB_ENV
+            exit 0
+          fi
+          
+          echo "Lambdas a desplegar: $MATCHING_LAMBDAS"
+          echo "LAMBDAS_TO_DEPLOY=\"$MATCHING_LAMBDAS\"" >> $GITHUB_ENV
+
       - name: Deploy Lambdas
+        if: env.LAMBDAS_TO_DEPLOY != ''
         run: |
           chmod +x scripts/deploy-from-title.sh
           
-          # Leer lambdas desde templates/lambdas.yml
-          while read LAMBDA_NAME; do
-            if [ -n "$LAMBDA_NAME" ]; then
-              echo "---"
-              echo "Desplegando: $LAMBDA_NAME"
-              scripts/deploy-from-title.sh "deploy: $LAMBDA_NAME"
+          for LAMBDA_NAME in $LAMBDAS_TO_DEPLOY; do
+            echo "========================================"
+            echo "Desplegando: $LAMBDA_NAME"
+            echo "========================================"
+            
+            if scripts/deploy-from-title.sh "deploy: $LAMBDA_NAME"; then
+              echo "COMPLETADO: $LAMBDA_NAME desplegado"
+            else
+              EXIT_CODE=$?
+              echo "ERROR: Falló despliegue de $LAMBDA_NAME (código: $EXIT_CODE)"
+              # Continuar con la siguiente lambda
             fi
-          done < <(grep "name:" templates/lambdas.yml | cut -d':' -f2 | xargs)
+          done
+          
+          echo "========================================"
+          echo "PROCESO DE DESPLIEGUE TERMINADO"
+          echo "========================================"
