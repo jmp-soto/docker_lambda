@@ -58,13 +58,27 @@ jobs:
           
           if [ -f "$LAMBDAS_FILE" ]; then
             echo "✅ Archivo encontrado: $LAMBDAS_FILE"
-            # Crear formato JSON para el output
-            yq eval '.lambdas' "$LAMBDAS_FILE" -o=json > lambdas.json
-            echo "lambdas_config=$(cat lambdas.json)" >> $GITHUB_OUTPUT
-            echo "Número de lambdas configuradas: $(jq length lambdas.json)"
+            
+            # Leer el contenido y convertirlo a JSON
+            LAMBDAS_CONTENT=$(yq eval '.lambdas' "$LAMBDAS_FILE" -o=json)
+            
+            # Usar jq para validar y compactar el JSON
+            LAMBDAS_JSON=$(echo "$LAMBDAS_CONTENT" | jq -c '.')
+            
+            # Guardar en archivo temporal para debug
+            echo "$LAMBDAS_JSON" > lambdas_debug.json
+            echo "Contenido JSON generado:"
+            cat lambdas_debug.json
+            
+            # Usar el método correcto para establecer el output
+            echo "lambdas_config<<EOF" >> $GITHUB_OUTPUT
+            echo "$LAMBDAS_JSON" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+            
+            echo "Número de lambdas configuradas: $(echo "$LAMBDAS_JSON" | jq 'length')"
           else
             echo "⚠️ Archivo no encontrado: $LAMBDAS_FILE"
-            echo 'lambdas_config=[]' >> $GITHUB_OUTPUT
+            echo "lambdas_config=[]" >> $GITHUB_OUTPUT
           fi
 
       - name: Deploy Lambdas from config
@@ -78,16 +92,25 @@ jobs:
           # Hacer ejecutable el script
           chmod +x scripts/deploy-from-title.sh
           
-          # Leer la configuración de lambdas
-          LAMBDAS_JSON='${{ steps.read-lambdas.outputs.lambdas_config }}'
+          # Mostrar el contenido del output
+          echo "Contenido de lambdas_config:"
+          echo '${{ steps.read-lambdas.outputs.lambdas_config }}'
+          
+          # Leer la configuración de lambdas desde archivo temporal
+          if [ -f "lambdas_debug.json" ]; then
+            LAMBDAS_JSON=$(cat lambdas_debug.json)
+          else
+            # Fallback al output
+            LAMBDAS_JSON='${{ steps.read-lambdas.outputs.lambdas_config }}'
+          fi
           
           echo "Configuración de lambdas leída:"
-          echo "$LAMBDAS_JSON" | jq .
+          echo "$LAMBDAS_JSON"
           
           # Contar lambdas
-          LAMBDA_COUNT=$(echo "$LAMBDAS_JSON" | jq 'length')
+          LAMBDA_COUNT=$(echo "$LAMBDAS_JSON" | jq 'length' 2>/dev/null || echo "0")
           
-          if [ "$LAMBDA_COUNT" -eq 0 ]; then
+          if [ "$LAMBDA_COUNT" -eq 0 ] || [ "$LAMBDA_COUNT" = "null" ]; then
             echo "ℹ️ No hay lambdas configuradas para desplegar"
             echo "Si esperabas despliegues, verifica que templates/lambdas.yml exista y tenga el formato correcto"
             exit 0
@@ -117,13 +140,8 @@ jobs:
               fi
               
               # Ejecutar el script con el nombre de la lambda como título
-              # Formato: "deploy: LambdaName"
               TITLE="deploy: $LAMBDA_NAME"
               echo "📝 Ejecutando: scripts/deploy-from-title.sh \"$TITLE\""
-              
-              # Configurar variables de entorno para el script
-              export AWS_REGION=us-east-1
-              export AWS_DEFAULT_REGION=us-east-1
               
               # Ejecutar el script
               if scripts/deploy-from-title.sh "$TITLE"; then
