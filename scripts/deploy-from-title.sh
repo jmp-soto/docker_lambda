@@ -7,7 +7,7 @@ LAMBDA_NAME=$(echo "$TITLE" | cut -d':' -f2 | xargs)
 # Convertir a minúsculas para Docker
 LAMBDA_NAME_LOWER=$(echo "$LAMBDA_NAME" | tr '[:upper:]' '[:lower:]')
 
-echo "🚀 INICIANDO DESPLIEGUE"
+echo "INICIANDO DESPLIEGUE"
 echo "======================"
 echo "Lambda: $LAMBDA_NAME"
 echo "Directorio actual: $(pwd)"
