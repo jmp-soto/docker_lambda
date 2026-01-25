@@ -1,0 +1,7 @@
+# Dependencias de prueba
+aws-lambda-powertools==1.28.0
+pytest==7.4.0
+pytest-mock==3.11.1
+xgboost 
+numpy 
+joblib

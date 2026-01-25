@@ -1,0 +1,15 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Resources:
+  LambdaDaMlOrderInicialCl:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: lambda-da-ml-order-inicial-cl
+      PackageType: Image
+      Timeout: 60
+      MemorySize: 2048
+    Metadata:
+      Dockerfile: Dockerfile
+      DockerContext: ../lambdas/lambda-da-ml-order-inicial-cl
+      DockerTag: latest

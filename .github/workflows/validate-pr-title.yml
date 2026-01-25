@@ -1,0 +1,14 @@
+name: Validate PR Title
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate PR title
+        run: |
+          [[ "${{ github.event.pull_request.title }}" =~ ^(deploy|feat|fix): ]] || exit 1
+        shell: bash

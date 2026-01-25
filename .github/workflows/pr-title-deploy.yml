@@ -1,0 +1,32 @@
+name: Deploy Lambda by PR Title
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  deploy:
+    if: >
+      github.event.pull_request.merged == true &&
+      startsWith(github.event.pull_request.title, 'deploy:')
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::123456789012:role/github-deploy
+          aws-region: us-east-1
+
+      - name: Setup SAM
+        uses: aws-actions/setup-sam@v2
+
+      - name: Setup Docker
+        uses: docker/setup-buildx-action@v3
+
+      - name: Deploy Lambda Image
+        run: |
+          bash scripts/deploy-from-title.sh \
+          "${{ github.event.pull_request.title }}"
