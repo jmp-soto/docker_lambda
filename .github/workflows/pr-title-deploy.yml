@@ -20,6 +20,11 @@ jobs:
         with:
           fetch-depth: 0
       
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq wget
+      
       - name: Configure AWS credentials
         id: creds
         uses: aws-actions/configure-aws-credentials@v3
@@ -41,20 +46,24 @@ jobs:
       - name: Read lambdas configuration
         id: read-lambdas
         run: |
-          # Instalar yq si es necesario
+          # Instalar yq
           if ! command -v yq &> /dev/null; then
             echo "Instalando yq..."
             sudo wget -q https://github.com/mikefarah/yq/releases/download/v4.35.1/yq_linux_amd64 -O /usr/bin/yq
             sudo chmod +x /usr/bin/yq
           fi
           
-          if [ -f "lambdas.yml" ]; then
-            echo "Archivo lambdas.yml encontrado"
+          # Verificar archivo en la ruta correcta
+          LAMBDAS_FILE="templates/lambdas.yml"
+          
+          if [ -f "$LAMBDAS_FILE" ]; then
+            echo "✅ Archivo encontrado: $LAMBDAS_FILE"
             # Crear formato JSON para el output
-            yq eval '.lambdas' lambdas.yml -o=json > lambdas.json
+            yq eval '.lambdas' "$LAMBDAS_FILE" -o=json > lambdas.json
             echo "lambdas_config=$(cat lambdas.json)" >> $GITHUB_OUTPUT
+            echo "Número de lambdas configuradas: $(jq length lambdas.json)"
           else
-            echo "Archivo lambdas.yml no encontrado"
+            echo "⚠️ Archivo no encontrado: $LAMBDAS_FILE"
             echo 'lambdas_config=[]' >> $GITHUB_OUTPUT
           fi
 
@@ -72,38 +81,63 @@ jobs:
           # Leer la configuración de lambdas
           LAMBDAS_JSON='${{ steps.read-lambdas.outputs.lambdas_config }}'
           
-          echo "Configuración de lambdas: $LAMBDAS_JSON"
+          echo "Configuración de lambdas leída:"
+          echo "$LAMBDAS_JSON" | jq .
           
-          # Si es un array vacío o no válido, salir
-          if [ "$LAMBDAS_JSON" = "[]" ] || [ -z "$LAMBDAS_JSON" ]; then
-            echo "No hay lambdas configuradas para desplegar"
+          # Contar lambdas
+          LAMBDA_COUNT=$(echo "$LAMBDAS_JSON" | jq 'length')
+          
+          if [ "$LAMBDA_COUNT" -eq 0 ]; then
+            echo "ℹ️ No hay lambdas configuradas para desplegar"
+            echo "Si esperabas despliegues, verifica que templates/lambdas.yml exista y tenga el formato correcto"
             exit 0
           fi
+          
+          echo "📦 Se encontraron $LAMBDA_COUNT lambda(s) para desplegar"
           
           # Procesar cada lambda
           echo "$LAMBDAS_JSON" | jq -c '.[]' | while read lambda; do
             LAMBDA_NAME=$(echo "$lambda" | jq -r '.name')
+            LAMBDA_PATH=$(echo "$lambda" | jq -r '.path // empty')
             
             if [ -n "$LAMBDA_NAME" ] && [ "$LAMBDA_NAME" != "null" ]; then
+              echo ""
               echo "=========================================="
               echo "🚀 DESPLEGANDO LAMBDA: $LAMBDA_NAME"
               echo "=========================================="
               
+              # Mostrar ruta si está definida
+              if [ -n "$LAMBDA_PATH" ]; then
+                echo "📁 Ruta configurada: $LAMBDA_PATH"
+                
+                # Verificar si la ruta existe
+                if [ ! -d "$LAMBDA_PATH" ]; then
+                  echo "⚠️ Advertencia: La ruta $LAMBDA_PATH no existe"
+                fi
+              fi
+              
               # Ejecutar el script con el nombre de la lambda como título
               # Formato: "deploy: LambdaName"
               TITLE="deploy: $LAMBDA_NAME"
-              echo "Ejecutando: scripts/deploy-from-title.sh \"$TITLE\""
+              echo "📝 Ejecutando: scripts/deploy-from-title.sh \"$TITLE\""
               
+              # Configurar variables de entorno para el script
+              export AWS_REGION=us-east-1
+              export AWS_DEFAULT_REGION=us-east-1
+              
+              # Ejecutar el script
               if scripts/deploy-from-title.sh "$TITLE"; then
                 echo "✅ Despliegue de $LAMBDA_NAME completado exitosamente"
               else
-                echo "❌ Error en el despliegue de $LAMBDA_NAME"
-                # Continuar con la siguiente lambda
+                EXIT_CODE=$?
+                echo "❌ Error en el despliegue de $LAMBDA_NAME (Código: $EXIT_CODE)"
+                echo "Continuando con la siguiente lambda..."
                 continue
               fi
             fi
           done
-        env:
-          # Variables de entorno necesarias para AWS/SAM
-          AWS_REGION: us-east-1
-          AWS_DEFAULT_REGION: us-east-1
+          
+          echo ""
+          echo "=========================================="
+          echo "🎉 PROCESO DE DESPLIEGUE COMPLETADO"
+          echo "=========================================="
