@@ -1,4 +1,4 @@
-name: Deploy Lambda by PR Title
+name: Deploy Lambda
 
 on:
   push:
@@ -17,16 +17,8 @@ jobs:
     
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
       
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y jq wget
-      
-      - name: Configure AWS credentials
-        id: creds
+      - name: Configure AWS
         uses: aws-actions/configure-aws-credentials@v3
         with:
           role-to-assume: arn:aws:iam::682033497219:role/githubrol
@@ -39,123 +31,18 @@ jobs:
       - name: Setup Docker
         uses: docker/setup-buildx-action@v3
       
-      - name: Login to Amazon ECR
-        id: login-ecr
+      - name: Login to ECR
         uses: aws-actions/amazon-ecr-login@v1
 
-      - name: Read lambdas configuration
-        id: read-lambdas
+      - name: Deploy Lambdas
         run: |
-          # Instalar yq
-          if ! command -v yq &> /dev/null; then
-            echo "Instalando yq..."
-            sudo wget -q https://github.com/mikefarah/yq/releases/download/v4.35.1/yq_linux_amd64 -O /usr/bin/yq
-            sudo chmod +x /usr/bin/yq
-          fi
-          
-          # Verificar archivo en la ruta correcta
-          LAMBDAS_FILE="templates/lambdas.yml"
-          
-          if [ -f "$LAMBDAS_FILE" ]; then
-            echo "✅ Archivo encontrado: $LAMBDAS_FILE"
-            
-            # Leer el contenido y convertirlo a JSON
-            LAMBDAS_CONTENT=$(yq eval '.lambdas' "$LAMBDAS_FILE" -o=json)
-            
-            # Usar jq para validar y compactar el JSON
-            LAMBDAS_JSON=$(echo "$LAMBDAS_CONTENT" | jq -c '.')
-            
-            # Guardar en archivo temporal para debug
-            echo "$LAMBDAS_JSON" > lambdas_debug.json
-            echo "Contenido JSON generado:"
-            cat lambdas_debug.json
-            
-            # Usar el método correcto para establecer el output
-            echo "lambdas_config<<EOF" >> $GITHUB_OUTPUT
-            echo "$LAMBDAS_JSON" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
-            
-            echo "Número de lambdas configuradas: $(echo "$LAMBDAS_JSON" | jq 'length')"
-          else
-            echo "⚠️ Archivo no encontrado: $LAMBDAS_FILE"
-            echo "lambdas_config=[]" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Deploy Lambdas from config
-        run: |
-          # Verificar que el script existe
-          if [ ! -f "scripts/deploy-from-title.sh" ]; then
-            echo "❌ ERROR: Script scripts/deploy-from-title.sh no encontrado"
-            exit 1
-          fi
-          
-          # Hacer ejecutable el script
           chmod +x scripts/deploy-from-title.sh
           
-          # Mostrar el contenido del output
-          echo "Contenido de lambdas_config:"
-          echo '${{ steps.read-lambdas.outputs.lambdas_config }}'
-          
-          # Leer la configuración de lambdas desde archivo temporal
-          if [ -f "lambdas_debug.json" ]; then
-            LAMBDAS_JSON=$(cat lambdas_debug.json)
-          else
-            # Fallback al output
-            LAMBDAS_JSON='${{ steps.read-lambdas.outputs.lambdas_config }}'
-          fi
-          
-          echo "Configuración de lambdas leída:"
-          echo "$LAMBDAS_JSON"
-          
-          # Contar lambdas
-          LAMBDA_COUNT=$(echo "$LAMBDAS_JSON" | jq 'length' 2>/dev/null || echo "0")
-          
-          if [ "$LAMBDA_COUNT" -eq 0 ] || [ "$LAMBDA_COUNT" = "null" ]; then
-            echo "ℹ️ No hay lambdas configuradas para desplegar"
-            echo "Si esperabas despliegues, verifica que templates/lambdas.yml exista y tenga el formato correcto"
-            exit 0
-          fi
-          
-          echo "📦 Se encontraron $LAMBDA_COUNT lambda(s) para desplegar"
-          
-          # Procesar cada lambda
-          echo "$LAMBDAS_JSON" | jq -c '.[]' | while read lambda; do
-            LAMBDA_NAME=$(echo "$lambda" | jq -r '.name')
-            LAMBDA_PATH=$(echo "$lambda" | jq -r '.path // empty')
-            
-            if [ -n "$LAMBDA_NAME" ] && [ "$LAMBDA_NAME" != "null" ]; then
-              echo ""
-              echo "=========================================="
-              echo "🚀 DESPLEGANDO LAMBDA: $LAMBDA_NAME"
-              echo "=========================================="
-              
-              # Mostrar ruta si está definida
-              if [ -n "$LAMBDA_PATH" ]; then
-                echo "📁 Ruta configurada: $LAMBDA_PATH"
-                
-                # Verificar si la ruta existe
-                if [ ! -d "$LAMBDA_PATH" ]; then
-                  echo "⚠️ Advertencia: La ruta $LAMBDA_PATH no existe"
-                fi
-              fi
-              
-              # Ejecutar el script con el nombre de la lambda como título
-              TITLE="deploy: $LAMBDA_NAME"
-              echo "📝 Ejecutando: scripts/deploy-from-title.sh \"$TITLE\""
-              
-              # Ejecutar el script
-              if scripts/deploy-from-title.sh "$TITLE"; then
-                echo "✅ Despliegue de $LAMBDA_NAME completado exitosamente"
-              else
-                EXIT_CODE=$?
-                echo "❌ Error en el despliegue de $LAMBDA_NAME (Código: $EXIT_CODE)"
-                echo "Continuando con la siguiente lambda..."
-                continue
-              fi
+          # Leer lambdas desde templates/lambdas.yml
+          while read LAMBDA_NAME; do
+            if [ -n "$LAMBDA_NAME" ]; then
+              echo "---"
+              echo "Desplegando: $LAMBDA_NAME"
+              scripts/deploy-from-title.sh "deploy: $LAMBDA_NAME"
             fi
-          done
-          
-          echo ""
-          echo "=========================================="
-          echo "🎉 PROCESO DE DESPLIEGUE COMPLETADO"
-          echo "=========================================="
+          done < <(grep "name:" templates/lambdas.yml | cut -d':' -f2 | xargs)
