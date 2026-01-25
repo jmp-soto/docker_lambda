@@ -17,7 +17,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::123456789012:role/github-deploy
+          role-to-assume: arn:aws:iam::682033497219:role/githubrol
           aws-region: us-east-1
 
       - name: Setup SAM
