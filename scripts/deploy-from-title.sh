@@ -8,7 +8,7 @@ TEMPLATE="infrastructure/${LAMBDA_NAME}.yml"
 
 echo "Current directory: $(pwd)"
 echo "Deploying Lambda Image: $LAMBDA_NAME"
-echo "📄 Using template: $TEMPLATE"
+echo "Using template: $TEMPLATE"
 echo "Template exists: $(if [ -f "$TEMPLATE" ]; then echo "YES"; else echo "NO"; fi)"
 
 ls -la infrastructure/  # Debug: list infrastructure directory
