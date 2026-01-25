@@ -22,4 +22,4 @@ Resources:
       # Opción B: Ruta absoluta (más segura en CI/CD)
       # DockerContext: /home/runner/work/docker_lambda/docker_lambda/lambdas/Lambda-da-ml-order-inicial-cl
       
-      DockerTag: v1.0.0
+      DockerTag: latest
