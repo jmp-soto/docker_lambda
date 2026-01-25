@@ -1,12 +1,12 @@
 name: Deploy Lambda by PR Title
 
 on:
-  pull_request:
-    types: [closed]
-    branches:
-      - develop
-      - qa
-      - prod
+  # pull_request:
+  #   types: [closed]
+  #   branches:
+  #     - develop
+  #     - qa
+  #     - prod
   push:
     branches:
       - develop
@@ -52,7 +52,12 @@ jobs:
           echo "INFRASTRUCTURE CONTENTS:"
           ls -la infrastructure || echo "❌ infrastructure folder not found"
   
+      # - name: Deploy Lambda Image
+      #   run: |
+      #     bash scripts/deploy-from-title.sh \
+      #     "${{ github.event.pull_request.title }}"
+
       - name: Deploy Lambda Image
         run: |
           bash scripts/deploy-from-title.sh \
-          "${{ github.event.pull_request.title }}"
+          "deploy:lambda-da-ml-order-inicial-cl"          
