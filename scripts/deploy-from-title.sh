@@ -6,7 +6,7 @@ LAMBDA_NAME=$(echo "$TITLE" | cut -d':' -f2)
 
 TEMPLATE="infrastructure/${LAMBDA_NAME}.yml"
 
-echo "🚀 Deploying Lambda Image: $LAMBDA_NAME"
+echo "Deploying Lambda Image: $LAMBDA_NAME"
 
 sam build \
   --template-file $TEMPLATE
