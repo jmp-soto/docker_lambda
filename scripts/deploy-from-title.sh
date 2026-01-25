@@ -116,6 +116,7 @@ echo "☁️ DESPLEGANDO A AWS"
 sam deploy \
   --template-file "$REPO_ROOT/.aws-sam/build/template.yaml" \
   --stack-name "$LAMBDA_NAME_LOWER" \
+  --s3-bucket "bucket-athena-nelson" \
   --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND \
   --resolve-image-repos \
   --no-confirm-changeset \
