@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Transform: AWS::Serverless-2016-10-31'
+Transform: AWS::Serverless-2016-10-31
 
 Resources:
   LambdaDaMlOrderInicialCl:
@@ -9,10 +9,13 @@ Resources:
       PackageType: Image
       Timeout: 60
       MemorySize: 2048
+      Environment:
+        Variables:
+          STAGE: prod
+          DEPLOYMENT_ID: ${{env.DEPLOYMENT_ID}}
     Metadata:
       Dockerfile: Dockerfile
-      DockerContext: ./lambdas/lambda-da-ml-order-inicial-cl  # Changed to relative from repo root
+      DockerContext: ./lambdas/lambda-da-ml-order-inicial-cl
       DockerTag: latest
-      Dockerfile: Dockerfile
       BuildArgs:
         BASE_IMAGE: public.ecr.aws/lambda/python:3.12
