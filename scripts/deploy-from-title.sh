@@ -2,16 +2,26 @@
 set -e
 
 TITLE=$1
-LAMBDA_NAME=$(echo "$TITLE" | cut -d':' -f2 | xargs)  # Added xargs to trim whitespace
+LAMBDA_NAME=$(echo "$TITLE" | cut -d':' -f2 | xargs)
 
-TEMPLATE="infrastructure/${LAMBDA_NAME}.yml"
+# Try different casing variations
+TEMPLATE_LOWER="infrastructure/${LAMBDA_NAME}.yml"
+TEMPLATE_UPPER="infrastructure/${LAMBDA_NAME^}.yml"  # Capitalize first letter
 
-echo "Current directory: $(pwd)"
+# Check which file exists
+if [ -f "$TEMPLATE_LOWER" ]; then
+  TEMPLATE="$TEMPLATE_LOWER"
+elif [ -f "$TEMPLATE_UPPER" ]; then
+  TEMPLATE="$TEMPLATE_UPPER"
+else
+  echo "❌ Template not found. Tried:"
+  echo "   - $TEMPLATE_LOWER"
+  echo "   - $TEMPLATE_UPPER"
+  exit 1
+fi
+
 echo "Deploying Lambda Image: $LAMBDA_NAME"
 echo "📄 Using template: $TEMPLATE"
-echo "Template exists: $(if [ -f "$TEMPLATE" ]; then echo "YES"; else echo "NO"; fi)"
-
-ls -la infrastructure/ 
 
 sam build \
   --template-file "$TEMPLATE"
