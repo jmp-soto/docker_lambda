@@ -35,6 +35,17 @@ jobs:
       - name: Setup Docker
         uses: docker/setup-buildx-action@v3
 
+      - name: DEBUG – repo structure
+        run: |
+          echo "PWD:"
+          pwd
+          echo
+          echo "ROOT CONTENTS:"
+          ls -la
+          echo
+          echo "INFRASTRUCTURE CONTENTS:"
+          ls -la infrastructure || echo "❌ infrastructure folder not found"
+
       - name: Deploy Lambda Image
         run: |
           bash scripts/deploy-from-title.sh \
