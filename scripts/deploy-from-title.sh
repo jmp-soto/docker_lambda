@@ -2,33 +2,66 @@
 set -e
 
 TITLE=$1
-LAMBDA_NAME=$(echo "$TITLE" | cut -d':' -f2 | xargs)
 
-# Try different casing variations
-TEMPLATE_LOWER="infrastructure/${LAMBDA_NAME}.yml"
-TEMPLATE_UPPER="infrastructure/${LAMBDA_NAME^}.yml"  # Capitalize first letter
-
-# Check which file exists
-if [ -f "$TEMPLATE_LOWER" ]; then
-  TEMPLATE="$TEMPLATE_LOWER"
-elif [ -f "$TEMPLATE_UPPER" ]; then
-  TEMPLATE="$TEMPLATE_UPPER"
-else
-  echo "❌ Template not found. Tried:"
-  echo "   - $TEMPLATE_LOWER"
-  echo "   - $TEMPLATE_UPPER"
+# Extract everything after "deploy:"
+LAMBDA_NAMES=$(echo "$TITLE" | grep -oP 'deploy:\s*\K.*' || echo "")
+if [ -z "$LAMBDA_NAMES" ]; then
+  echo "❌ No lambda names found in title: $TITLE"
   exit 1
 fi
 
-echo "Deploying Lambda Image: $LAMBDA_NAME"
-echo "📄 Using template: $TEMPLATE"
+# Remove spaces and split by comma
+LAMBDA_NAMES=$(echo "$LAMBDA_NAMES" | tr -d ' ')
+IFS=',' read -ra LAMBDA_ARRAY <<< "$LAMBDA_NAMES"
 
-sam build \
-  --template-file "$TEMPLATE"
+echo "📋 Deploying Lambdas: ${LAMBDA_ARRAY[*]}"
+echo "Current directory: $(pwd)"
 
-sam deploy \
-  --template-file .aws-sam/build/template.yaml \
-  --stack-name "$LAMBDA_NAME" \
-  --capabilities CAPABILITY_IAM \
-  --resolve-image-repos \
-  --no-confirm-changeset
+for LAMBDA_NAME in "${LAMBDA_ARRAY[@]}"; do
+  echo ""
+  echo "🚀 Processing Lambda: $LAMBDA_NAME"
+  
+  # Find template (case-insensitive)
+  TEMPLATE_FILE=$(find infrastructure/ -iname "${LAMBDA_NAME}.yml" -type f | head -1)
+  
+  if [ -z "$TEMPLATE_FILE" ]; then
+    echo "❌ Template not found for: $LAMBDA_NAME"
+    echo "Available templates:"
+    ls -la infrastructure/*.yml 2>/dev/null || echo "No templates found"
+    exit 1
+  fi
+  
+  echo "📄 Using template: $TEMPLATE_FILE"
+  
+  # Verify Docker context directory exists
+  DOCKER_CONTEXT="lambdas/${LAMBDA_NAME}"
+  if [ ! -d "$DOCKER_CONTEXT" ]; then
+    echo "❌ Docker context directory not found: $DOCKER_CONTEXT"
+    echo "Available lambda directories:"
+    ls -la lambdas/ 2>/dev/null || echo "No lambda directories found"
+    exit 1
+  fi
+  
+  echo "✅ Docker context directory exists: $DOCKER_CONTEXT"
+  
+  # Build with SAM
+  echo "🔨 Building SAM application..."
+  sam build \
+    --template-file "$TEMPLATE_FILE" \
+    --use-container
+  
+  # Deploy with SAM
+  echo "☁️  Deploying to AWS..."
+  sam deploy \
+    --template-file .aws-sam/build/template.yaml \
+    --stack-name "$LAMBDA_NAME" \
+    --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND \
+    --resolve-image-repos \
+    --no-confirm-changeset \
+    --no-fail-on-empty-changeset
+  
+  echo "✅ Successfully deployed: $LAMBDA_NAME"
+done
+
+echo ""
+echo "🎉 All lambdas deployed successfully!"
