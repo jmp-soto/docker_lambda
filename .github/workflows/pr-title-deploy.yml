@@ -40,46 +40,6 @@ jobs:
 
       - name: Setup Docker
         uses: docker/setup-buildx-action@v3
-
-      - name: Preparar estructura CORRECTA
-        run: |
-          echo "🔄 PREPARANDO ESTRUCTURA CORRECTA"
-          
-          # 1. Crear estructura si no existe
-          mkdir -p lambdas/Lambda-da-ml-order-inicial-cl/src
-          
-          # 2. Verificar/crear archivos
-          if [ ! -f "lambdas/Lambda-da-ml-order-inicial-cl/src/lambda_function.py" ]; then
-            echo "Creando lambda_function.py..."
-            cat > lambdas/Lambda-da-ml-order-inicial-cl/src/lambda_function.py << 'EOF'
-            import json
-
-            def handler(event, context):
-                return {
-                    'statusCode': 200,
-                    'body': json.dumps({'message': 'Hello from Lambda!'})
-                }
-            EOF
-                fi
-                
-                if [ ! -f "lambdas/Lambda-da-ml-order-inicial-cl/src/requirements.txt" ]; then
-                  echo "Creando requirements.txt..."
-                  echo "boto3==1.34.0" > lambdas/Lambda-da-ml-order-inicial-cl/src/requirements.txt
-                fi
-                
-                # 3. Crear Dockerfile CORRECTO
-                cat > lambdas/Lambda-da-ml-order-inicial-cl/Dockerfile << 'EOF'
-            FROM public.ecr.aws/lambda/python:3.12
-            RUN microdnf install -y gcc gcc-c++ make && microdnf clean all
-            COPY src/requirements.txt .
-            RUN pip install --no-cache-dir -r requirements.txt
-            COPY src/lambda_function.py ${LAMBDA_TASK_ROOT}
-            CMD ["lambda_function.handler"]
-            EOF
-          
-          # 4. Verificar
-          echo "✅ Estructura preparada"
-          tree lambdas/Lambda-da-ml-order-inicial-cl/
   
       # - name: Deploy Lambda Image
       #   run: |
