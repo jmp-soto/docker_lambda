@@ -1,4 +1,4 @@
-# infrastructure/Lambda-da-ml-order-inicial-cl.yml
+# infrastructure/lambda-da-ml-order-inicial-cl.yml
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 
@@ -15,11 +15,5 @@ Resources:
           STAGE: prod
     Metadata:
       Dockerfile: Dockerfile
-      # ¡IMPORTANTE! Esto es CRÍTICO:
-      # Opción A: Ruta relativa DESDE EL DIRECTORIO ACTUAL donde se ejecuta SAM
-      DockerContext: ./lambdas/Lambda-da-ml-order-inicial-cl
-      
-      # Opción B: Ruta absoluta (más segura en CI/CD)
-      # DockerContext: /home/runner/work/docker_lambda/docker_lambda/lambdas/Lambda-da-ml-order-inicial-cl
-      
+      DockerContext: lambdas/Lambda-da-ml-order-inicial-cl
       DockerTag: latest
