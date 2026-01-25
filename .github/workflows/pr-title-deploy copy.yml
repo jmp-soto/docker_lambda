@@ -11,10 +11,11 @@ on:
       environment:
         description: 'Ambiente de despliegue'
         required: true
-        default: 'develop'
+        default: 'lambda_prueba_dockers'
         type: choice
         options:
         - develop
+        - lambda_prueba_dockers
         - qa
         - prod
 
