@@ -1,3 +1,4 @@
+# infrastructure/Lambda-da-ml-order-inicial-cl.yml
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 
@@ -9,13 +10,9 @@ Resources:
       PackageType: Image
       Timeout: 60
       MemorySize: 2048
-      Environment:
-        Variables:
-          STAGE: prod
-          DEPLOYMENT_ID: ${{env.DEPLOYMENT_ID}}
     Metadata:
       Dockerfile: Dockerfile
-      DockerContext: ./lambdas/Lambda-da-ml-order-inicial-cl
+      DockerContext: lambdas/Lambda-da-ml-order-inicial-cl  # SIN "./" al inicio
       DockerTag: latest
       BuildArgs:
         BASE_IMAGE: public.ecr.aws/lambda/python:3.12
