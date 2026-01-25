@@ -19,9 +19,9 @@ permissions:
   contents: read
 jobs:
   deploy:
-    if: >
-      github.event.pull_request.merged == true &&
-      startsWith(github.event.pull_request.title, 'deploy:')
+    # if: >
+    #   github.event.pull_request.merged == true &&
+    #   startsWith(github.event.pull_request.title, 'deploy:')
     runs-on: ubuntu-latest
 
     steps:
