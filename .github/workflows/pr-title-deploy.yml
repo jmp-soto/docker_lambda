@@ -3,7 +3,14 @@ name: Deploy Lambda by PR Title
 on:
   pull_request:
     types: [closed]
+    branches:
+      - develop
+      - qa
+      - prod
 
+permissions:
+  id-token: write
+  contents: read
 jobs:
   deploy:
     if: >
