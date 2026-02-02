@@ -19,7 +19,7 @@ case "$LAMBDA_NAME" in
     TEMPLATE_FILE="infrastructure/Lambda-da-ml-order-inicial-back-office.yml"
     ;;
   lambda-da-ml-order-inicial-cl)
-    LAMBDA_DIR="lambdas/Lambda-da-ml-order-inicial-cl"  # ✅ Fixed: removed extra 's'
+    LAMBDA_DIR="lambdas/Lambda-da-ml-order-inicial-cl" 
     TEMPLATE_FILE="infrastructure/Lambda-da-ml-order-inicial-cl.yml"
     ;;
   *)
@@ -31,7 +31,7 @@ case "$LAMBDA_NAME" in
     ;;
 esac
 
-STACK_NAME="$LAMBDA_NAME-$ENVIRONMENT"  # ✅ Add environment to stack name to avoid conflicts
+STACK_NAME="$LAMBDA_NAME"  # ✅ Add environment to stack name to avoid conflicts
 
 if [ ! -d "$LAMBDA_DIR" ]; then
   echo "ERROR: Directorio no encontrado: $LAMBDA_DIR"
