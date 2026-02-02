@@ -1,19 +1,66 @@
-# infrastructure/lambda-da-ml-order-inicial-cl.yml
 AWSTemplateFormatVersion: '2010-09-09'
-Transform: AWS::Serverless-2016-10-31
+Description: Lambda function for ML Order Initial CL
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, qa, prod]
+  ImageUri:
+    Type: String
+    Description: ECR Image URI
+  LambdaName:
+    Type: String
+    Default: lambda-da-ml-order-inicial-cl
 
 Resources:
   LambdaDaMlOrderInicialCl:
-    Type: AWS::Serverless::Function
+    Type: AWS::Lambda::Function
     Properties:
-      FunctionName: lambda-da-ml-order-inicial-cl
+      FunctionName: !Sub ${LambdaName}
       PackageType: Image
-      Timeout: 60
-      MemorySize: 2048
+      ImageConfig:
+        Command:
+          - app.handler
+      Timeout: 30
+      MemorySize: 512
       Environment:
         Variables:
-          STAGE: prod
-    Metadata:
-      Dockerfile: Dockerfile
-      DockerContext: lambdas/Lambda-da-ml-order-inicial-cl
-      DockerTag: latest
+          ENVIRONMENT: !Ref Environment
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: ml-order-system
+
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${LambdaName}-execution-role-${Environment}
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: lambda-basic-execution
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: arn:aws:logs:*:*:*
+
+Outputs:
+  LambdaArn:
+    Description: ARN of the Lambda function
+    Value: !GetAtt LambdaDaMlOrderInicialCl.Arn
+  LambdaName:
+    Description: Name of the Lambda function
+    Value: !Ref LambdaDaMlOrderInicialCl

@@ -1,4 +1,4 @@
-name: Deploy Lambda ML Order
+name: Deploy Lambda from PR Title
 
 on:
   pull_request:
@@ -47,6 +47,7 @@ jobs:
               ;;
           esac
           echo "environment=$ENVIRONMENT" >> $GITHUB_OUTPUT
+          echo "environment=$ENVIRONMENT" >> $GITHUB_ENV
       
       - name: Determine matrix for deployment
         id: set-matrix
@@ -54,42 +55,33 @@ jobs:
           TITLE="${{ github.event.pull_request.title }}"
           echo "Parsing title: $TITLE"
           
-          # Convertir a minúsculas para comparación insensible
           TITLE_LOWER=$(echo "$TITLE" | tr '[:upper:]' '[:lower:]')
           
           MATRIX='{"include":['
           
-          # Lista de lambdas disponibles en tu proyecto
           LAMBDAS=(
             "lambda-da-ml-order-inicial-back-office"
             "lambda-da-ml-order-inicial-cl"
-            # Agregar más lambdas según sea necesario
           )
           
-          # Verificar si el PR contiene "deploy:" en el título
           if [[ "$TITLE_LOWER" == *"deploy:"* ]]; then
-            echo "Encontrado 'deploy:' en el título"
+            echo "Encontrado 'deploy:' en el titulo"
             
-            # Extraer la sección después de deploy:
-            DEPLOY_SECTION=$(echo "$TITLE" | grep -i -o "deploy:.*" | cut -d: -f2- | xargs)
-            echo "Sección de deploy: '$DEPLOY_SECTION'"
+            DEPLOY_SECTION=$(echo "$TITLE" | grep -i -o "deploy:.*" | cut -d: -f2- | sed 's/ .*//' | xargs)
+            echo "Seccion de deploy: '$DEPLOY_SECTION'"
             
-            # Separar por comas
             IFS=',' read -ra REQUESTED_LAMBDAS <<< "$DEPLOY_SECTION"
             
             for REQ_LAMBDA in "${REQUESTED_LAMBDAS[@]}"; do
-              CLEAN_LAMBDA=$(echo "$REQ_LAMBDA" | xargs)  # Limpiar espacios
-              CLEAN_LAMBDA_LOWER=$(echo "$CLEAN_LAMBDA" | tr '[:upper:]' '[:lower:]')
+              CLEAN_LAMBDA=$(echo "$REQ_LAMBDA" | xargs | tr '[:upper:]' '[:lower:]')
               
-              echo "Buscando: '$CLEAN_LAMBDA_LOWER'"
+              echo "Buscando: '$CLEAN_LAMBDA'"
               
-              # Verificar si la lambda solicitada existe en nuestra lista
               for AVAILABLE_LAMBDA in "${LAMBDAS[@]}"; do
                 AVAILABLE_LAMBDA_LOWER=$(echo "$AVAILABLE_LAMBDA" | tr '[:upper:]' '[:lower:]')
                 
-                if [[ "$AVAILABLE_LAMBDA_LOWER" == *"$CLEAN_LAMBDA_LOWER"* ]] || \
-                   [[ "$CLEAN_LAMBDA_LOWER" == *"$AVAILABLE_LAMBDA_LOWER"* ]]; then
-                  echo "✓ Lambda encontrada: $AVAILABLE_LAMBDA"
+                if [[ "$AVAILABLE_LAMBDA_LOWER" == "$CLEAN_LAMBDA" ]]; then
+                  echo "Lambda encontrada: $AVAILABLE_LAMBDA"
                   MATRIX+="{\"lambda\":\"$AVAILABLE_LAMBDA\"},"
                   break
                 fi
@@ -97,21 +89,24 @@ jobs:
             done
           fi
           
-          # Si no se especificó deploy:, buscar lambdas individualmente en el título
+          if [[ "$MATRIX" == '{"include":[' ]] && [[ "$TITLE_LOWER" == *"-all"* ]]; then
+            echo "Encontrado '-all' en el titulo, desplegando todas"
+            for LAMBDA in "${LAMBDAS[@]}"; do
+              MATRIX+="{\"lambda\":\"$LAMBDA\"},"
+            done
+          fi
+          
           if [[ "$MATRIX" == '{"include":[' ]]; then
-            echo "Buscando lambdas directamente en el título..."
-            
             for LAMBDA in "${LAMBDAS[@]}"; do
               LAMBDA_LOWER=$(echo "$LAMBDA" | tr '[:upper:]' '[:lower:]')
               
               if [[ "$TITLE_LOWER" == *"$LAMBDA_LOWER"* ]]; then
-                echo "✓ Lambda encontrada en título: $LAMBDA"
+                echo "Lambda encontrada en titulo: $LAMBDA"
                 MATRIX+="{\"lambda\":\"$LAMBDA\"},"
               fi
             done
           fi
           
-          # Finalizar la matriz
           if [[ "$MATRIX" == '{"include":[' ]]; then
             MATRIX='{"include":[]}'
             echo "No se encontraron lambdas para desplegar"
@@ -122,7 +117,7 @@ jobs:
           
           echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
 
-  deploy-lambda:
+  deploy-lambdas:
     needs: prepare
     if: ${{ fromJson(needs.prepare.outputs.matrix).include[0] }}
     runs-on: ubuntu-latest
@@ -140,140 +135,23 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v3
         with:
           role-to-assume: arn:aws:iam::682033497219:role/githubrol
-          role-session-name: github-actions-deploy
+          role-session-name: github-actions-${{ matrix.lambda }}
           aws-region: us-east-1
       
-      - name: Setup SAM
+      - name: Setup SAM CLI
         uses: aws-actions/setup-sam@v2
       
       - name: Setup Docker
         uses: docker/setup-buildx-action@v3
       
-      - name: Login to ECR
-        uses: aws-actions/amazon-ecr-login@v1
-      
-      - name: Deploy Lambda ${{ matrix.lambda }}
+      - name: Execute deploy-from-title.sh
+        env:
+          ENVIRONMENT: ${{ needs.prepare.outputs.environment }}
         run: |
           echo "========================================"
-          echo "Desplegando: ${{ matrix.lambda }}"
-          echo "Entorno: ${{ needs.prepare.outputs.environment }}"
+          echo "Ejecutando script de despliegue"
           echo "========================================"
           
-          # Determinar qué archivo YAML usar basado en la lambda
-          case "${{ matrix.lambda }}" in
-            lambda-da-ml-order-inicial-back-office)
-              INFRA_FILE="infrastructure/Lambda-da-ml-order-inicial-back-office.yml"
-              ;;
-            lambda-da-ml-order-inicial-cl)
-              INFRA_FILE="infrastructure/Lambda-da-ml-order-inicial-cl.yml"
-              ;;
-            *)
-              echo "ERROR: Lambda no reconocida: ${{ matrix.lambda }}"
-              exit 1
-              ;;
-          esac
+          chmod +x scripts/deploy-from-title.sh
           
-          # Verificar que el archivo existe
-          if [ ! -f "$INFRA_FILE" ]; then
-            echo "ERROR: Archivo de infraestructura no encontrado: $INFRA_FILE"
-            exit 1
-          fi
-          
-          # Construir el stack name basado en el entorno y lambda
-          STACK_NAME="ml-order-${{ matrix.lambda }}-${{ needs.prepare.outputs.environment }}"
-          
-          echo "Archivo de infraestructura: $INFRA_FILE"
-          echo "Stack name: $STACK_NAME"
-          
-          # Deploy usando SAM
-          sam deploy \
-            --template-file "$INFRA_FILE" \
-            --stack-name "$STACK_NAME" \
-            --region us-east-1 \
-            --capabilities CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND \
-            --no-fail-on-empty-changeset \
-            --tags \
-              Environment=${{ needs.prepare.outputs.environment }} \
-              Project=ml-order-system \
-              ManagedBy=github-actions
-          
-          echo "Despliegue completado para ${{ matrix.lambda }}"
-
-  deploy-all-lambdas:
-    if: ${{ contains(needs.prepare.outputs.pr_title, '-all') || contains(needs.prepare.outputs.pr_title, 'all') }}
-    needs: prepare
-    runs-on: ubuntu-latest
-    environment:
-      name: ${{ needs.prepare.outputs.environment }}
-    
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v3
-        with:
-          role-to-assume: arn:aws:iam::682033497219:role/githubrol
-          role-session-name: github-actions-deploy-all
-          aws-region: us-east-1
-      
-      - name: Setup SAM
-        uses: aws-actions/setup-sam@v2
-      
-      - name: Setup Docker
-        uses: docker/setup-buildx-action@v3
-      
-      - name: Login to ECR
-        uses: aws-actions/amazon-ecr-login@v1
-      
-      - name: Deploy all Lambdas
-        run: |
-          echo "========================================"
-          echo "DESPLIEGUE MASIVO - TODAS LAS LAMBDAS"
-          echo "Entorno: ${{ needs.prepare.outputs.environment }}"
-          echo "========================================"
-          
-          # Lista de todas las lambdas a desplegar
-          LAMBDAS=(
-            "lambda-da-ml-order-inicial-back-office"
-            "lambda-da-ml-order-inicial-cl"
-          )
-          
-          for LAMBDA in "${LAMBDAS[@]}"; do
-            echo ""
-            echo "Desplegando: $LAMBDA"
-            echo "----------------------------------------"
-            
-            case "$LAMBDA" in
-              lambda-da-ml-order-inicial-back-office)
-                INFRA_FILE="infrastructure/Lambda-da-ml-order-inicial-back-office.yml"
-                ;;
-              lambda-da-ml-order-inicial-cl)
-                INFRA_FILE="infrastructure/Lambda-da-ml-order-inicial-cl.yml"
-                ;;
-            esac
-            
-            STACK_NAME="ml-order-$LAMBDA-${{ needs.prepare.outputs.environment }}"
-            
-            if [ -f "$INFRA_FILE" ]; then
-              sam deploy \
-                --template-file "$INFRA_FILE" \
-                --stack-name "$STACK_NAME" \
-                --region us-east-1 \
-                --capabilities CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND \
-                --no-fail-on-empty-changeset \
-                --tags \
-                  Environment=${{ needs.prepare.outputs.environment }} \
-                  Project=ml-order-system \
-                  ManagedBy=github-actions
-              
-              echo "$LAMBDA - COMPLETADO"
-            else
-              echo "$LAMBDA - Archivo no encontrado: $INFRA_FILE"
-            fi
-          done
-          
-          echo ""
-          echo "========================================"
-          echo "DESPLIEGUE MASIVO COMPLETADO"
-          echo "========================================"
+          ./scripts/deploy-from-title.sh "deploy:${{ matrix.lambda }}" "$ENVIRONMENT"
