@@ -31,7 +31,7 @@ case "$LAMBDA_NAME" in
     ;;
 esac
 
-STACK_NAME="$LAMBDA_NAME"  # ✅ Add environment to stack name to avoid conflicts
+STACK_NAME="$LAMBDA_NAME" 
 
 if [ ! -d "$LAMBDA_DIR" ]; then
   echo "ERROR: Directorio no encontrado: $LAMBDA_DIR"
