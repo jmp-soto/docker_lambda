@@ -9,6 +9,7 @@ Parameters:
   ImageUri:
     Type: String
     Description: ECR Image URI
+    Default: ""  # ✅ Agrega un valor por defecto
   LambdaName:
     Type: String
     Default: lambda-da-ml-order-inicial-cl
@@ -17,8 +18,10 @@ Resources:
   LambdaDaMlOrderInicialCl:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub ${LambdaName}
+      FunctionName: !Sub ${LambdaName}-${Environment}  # ✅ Agrega environment al nombre
       PackageType: Image
+      Code:
+        ImageUri: !Ref ImageUri  # ✅ Esto es REQUERIDO para funciones container
       ImageConfig:
         Command:
           - app.handler
@@ -45,6 +48,8 @@ Resources:
             Principal:
               Service: lambda.amazonaws.com
             Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
       Policies:
         - PolicyName: lambda-basic-execution
           PolicyDocument:
